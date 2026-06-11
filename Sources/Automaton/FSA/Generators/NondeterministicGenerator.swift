@@ -8,7 +8,6 @@
 import Foundation
 
 
-//public struct NondeterministicGenerator {
 extension State where T == NondeterministicFiniteState {
 
     /// Generates a new automaton instance based on the provided configuration options.

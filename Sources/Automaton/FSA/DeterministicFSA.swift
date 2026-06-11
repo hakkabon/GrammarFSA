@@ -157,9 +157,9 @@ extension DeterministicFiniteState: Deterministic {
         return self.state.reachableStates(from: source)
     }
 
-    public mutating func minimize() {
-        self.state.minimize()
-    }
+//    public mutating func minimize() {
+//        self.state.minimize()
+//    }
 
     /// Generates a new automaton instance based on the provided configuration options.
     /// Generate a random DFA using the bridge-based strategy

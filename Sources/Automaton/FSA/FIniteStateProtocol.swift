@@ -122,32 +122,10 @@ public protocol Nondeterministic : FSA {
     // MARK: - Transformation & Factory Methods
 
     /// Powerset construction method.
-    mutating func determinize(nondeterministic nfa: NfaTuple) -> DfaTuple
+    mutating func determinize()
 
     /// Returns a randomly created Nondeterministic Finit Automaton.
     func generate(with options: GenerateOptions) -> Subtype
-}
-
-
-/// Minimization algorithms.
-public enum Algorithm {
-    /// Complexity: O(n^2)
-    case berstel
-
-    /// Complexity: O(2^n)
-    case brzozowski
-
-    /// Complexity: O(n log n)
-    case hopcroft
-
-    /// Complexity: O(n^2)
-    case myhillNerode
-
-    /// Complexity: O(n^2)
-    case moore
-
-    /// Complexity: O(n + m log m)
-    case valmari
 }
 
 
@@ -155,9 +133,6 @@ public enum Algorithm {
 public protocol Deterministic : FSA {
     /// Actual type value of the Finite State Automaton.
     associatedtype Subtype
-
-    /// Initializer method.
-    var algorithm: Algorithm { get set }
 
     // MARK: - Creation
 

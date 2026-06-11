@@ -194,8 +194,8 @@ extension NondeterministicFiniteState: Nondeterministic {
     /// - Parameter nfa: The input `NfaTuple` representing the nondeterministic automaton.
     /// - Returns: A `DfaTuple` representing the equivalent deterministic automaton.
     /// - Complexity: Exponential in the worst case relative to the number of NFA states, though often much smaller in practice.
-    public mutating func determinize(nondeterministic nfa: NfaTuple) -> DfaTuple {
-        return self.state.determinize(nondeterministic: nfa)
+    public mutating func determinize() {
+        self.state.determinize()
     }
 
     /// Generates a new automaton instance based on the provided configuration options.

@@ -9,50 +9,10 @@
 import Foundation
 import GraphViz
 
-/// An automaton runs on some given sequence of inputs in discrete time steps. An automaton gets
-/// one input every time step that is picked up from a set of symbols or letters, which is called
-/// an alphabet. At any time, the symbols so far fed to the automaton as input form a finite
-/// sequence of symbols, which is called a word. An automaton contains a finite set of states.
-/// At each instance in time of some run, the automaton is in one of its states. At each time step
-/// when the automaton reads a symbol, it jumps or transitions to another state that is decided by
-/// a function that takes the current state and symbol as parameters. This function is called the
-/// transition function. The automaton reads the symbols of the input word one after another and
-/// transitions from state to state according to the transition function, until the word is read
-/// completely. Once the input word has been read, the automaton is said to have stopped and the
-/// state at which automaton has stopped is called the final state. Depending on the final state,
-/// it's said that the automaton either accepts or rejects an input word. There is a subset of
-/// states of the automaton, which is defined as the set of accepting states. If the final state
-/// is an accepting state, then the automaton accepts the word. Otherwise, the word is rejected.
-/// The set of all the words accepted by an automaton is called the language recognized by the
-/// automaton.
-///
-/// • Deterministic Automata
-/// • Non deterministic Automata
-/// • Automata construction from Regular Expression
-/// • Regular Expression construction
-///     - Thompson construction method
-///     - Berry-Sethi construction method
-///     - Brzozowski method using string derivatives
-/// • Assembly of FSAs from transitions and states
-/// • Parsing from file
-/// • DWAG direct construction
-/// • Automata Minimization
-///     - Four different minimization algorithms are supported.
-///
-/// A deterministic finite automaton is represented formally by a 5-tuple (Q,Σ,δ,q0,F), where:
-///     Q is a finite set of states.
-///     Σ is a finite set of symbols, called the alphabet of the automaton.
-///     δ is the transition function, that is, δ: Q × Σ → Q.
-///     q0 is the start (initial) state, where q0 ∈ Q.
-///     F is a set of states of Q (i.e. F ⊆ Q) called final, or accept, states.
-
 public struct Automaton<Type> {
 
     /// Automaton is either nfa | dfa.
     public var state: State<Type> = .nfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>())
-
-    /// Algorithm used for minimization of automaton.
-    public var algorithm: Algorithm = .moore
 
     /// empty automaton is NOT defined.
     private init() {}

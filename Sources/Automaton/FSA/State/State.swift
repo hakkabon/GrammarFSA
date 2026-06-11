@@ -6,6 +6,7 @@
 //  Copyright © 2019 hakkabon software. All rights reserved.
 //
 
+#if false
 /// The Internal values of Finite State Automaton can only be one of `Deterministic` or `Nondeterministic`.
 public enum State<T> {
     case nfa(initial: Int, finals: Set<Int>, transitions: Set<Transition>)
@@ -24,6 +25,78 @@ public enum State<T> {
         self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
     }
 }
+#endif
+
+// MARK: - Extended State with Token Tracking
+
+/// Enhanced State enum with token class tracking
+public enum State<T> {
+    case nfa(
+        initial: Int,
+        finals: Set<Int>,
+        transitions: Set<Transition>,
+        tokenMap: [Int: TokenClass]  // Maps final states to their token classes
+    )
+    case dfa(
+        initial: Int,
+        finals: Set<Int>,
+        transitions: Set<Transition>,
+        minimal: Bool,
+        tokenMap: [Int: TokenClass]  // Maps final states to their token classes
+    )
+    
+    // MARK: Constructors
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>) where T == NondeterministicFiniteState {
+        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: [:])
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, tokenMap: [Int: TokenClass]) where T == NondeterministicFiniteState {
+        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: tokenMap)
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool) where T == DeterministicFiniteState {
+        self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: [:])
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool, tokenMap: [Int: TokenClass]) where T == DeterministicFiniteState {
+        self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: tokenMap)
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>) where T == Regex {
+        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: [:])
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, tokenMap: [Int: TokenClass]) where T == Regex {
+        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: tokenMap)
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool) where T == Regex {
+        self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: [:])
+    }
+    
+    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool, tokenMap: [Int: TokenClass]) where T == Regex {
+        self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: tokenMap)
+    }
+    
+    // MARK: Accessors
+    
+    var tokenMap: [Int: TokenClass] {
+        switch self {
+        case .nfa(_, _, _, let map): return map
+        case .dfa(_, _, _, _, let map): return map
+        }
+    }
+    
+    mutating func setTokenMap(_ newMap: [Int: TokenClass]) {
+        switch self {
+        case .nfa(let i, let f, let t, _):
+            self = .nfa(initial: i, finals: f, transitions: t, tokenMap: newMap)
+        case .dfa(let i, let f, let t, let m, _):
+            self = .dfa(initial: i, finals: f, transitions: t, minimal: m, tokenMap: newMap)
+        }
+    }
+}
 
 
 extension State {    
@@ -37,7 +110,7 @@ extension State {
     /// Returns true if state of automaton is `deterministic`.
     public var isDeterministic: Bool {
         get {
-            guard case .dfa(_,_,_,_) = self else { return false }
+            guard case .dfa(_,_,_,_,_) = self else { return false }
             return true
         }
     }
@@ -45,7 +118,7 @@ extension State {
     /// Returns true if state of automaton is `minimal`.
     public var isMinimal: Bool {
         get {
-            guard case let .dfa(_,_,_,minimal) = self else { return false }
+            guard case let .dfa(_,_,_,minimal,_) = self else { return false }
             return minimal
         }
     }
@@ -53,8 +126,8 @@ extension State {
     /// Initial state of automaton.
     public var initial: Int {
         switch self {
-        case let .nfa(initial,_,_): return initial
-        case let .dfa(initial,_,_,_): return initial
+        case let .nfa(initial,_,_,_): return initial
+        case let .dfa(initial,_,_,_,_): return initial
 //        case .empty: return 0
         }
     }
@@ -62,8 +135,8 @@ extension State {
     /// Final states of automaton.
     public var finals: Set<Int> {
         switch self {
-        case let .nfa(_,finals,_): return finals
-        case let .dfa(_,finals,_,_): return finals
+        case let .nfa(_,finals,_,_): return finals
+        case let .dfa(_,finals,_,_,_): return finals
 //        case .empty: return Set<Int>()
         }
     }
@@ -71,8 +144,8 @@ extension State {
     /// Number of states, not taking into account for non-relevant zombie states.
     public var stateCount: Int {
         switch self {
-        case let .nfa(_,_,transitions): return transitions.states().count
-        case let .dfa(_,_,transitions,_): return transitions.states().count
+        case let .nfa(_,_,transitions,_): return transitions.states().count
+        case let .dfa(_,_,transitions,_,_): return transitions.states().count
 //        case .empty: return 0
         }
     }
@@ -80,8 +153,8 @@ extension State {
     /// Number of final states.
     public var finalCount: Int {
         switch self {
-        case let .nfa(_,finals,_): return finals.count
-        case let .dfa(_,finals,_,_): return finals.count
+        case let .nfa(_,finals,_,_): return finals.count
+        case let .dfa(_,finals,_,_,_): return finals.count
 //        case .empty: return 0
         }
     }
@@ -89,8 +162,8 @@ extension State {
     /// Returns alphabet defined on autmaton.
     public var alphabet: Alphabet {
         switch self {
-        case let .nfa(_,_,transitions): return transitions.alphabet()
-        case let .dfa(_,_,transitions,_): return transitions.alphabet()
+        case let .nfa(_,_,transitions,_): return transitions.alphabet()
+        case let .dfa(_,_,transitions,_,_): return transitions.alphabet()
 //        case .empty: return Alphabet([])
         }
     }
@@ -98,8 +171,8 @@ extension State {
     /// Returns true if given state is the `final` state of autmaton.
     public func isFinal(state: Int) -> Bool {
         switch self {
-        case let .nfa(_,finals,_): return finals.contains(state)
-        case let .dfa(_,finals,_,_): return finals.contains(state)
+        case let .nfa(_,finals,_,_): return finals.contains(state)
+        case let .dfa(_,finals,_,_,_): return finals.contains(state)
 //        case .empty: return false
         }
     }
@@ -107,10 +180,108 @@ extension State {
     /// Returns true if given state is the `initial` state of autmaton.
     public func isInitial(state: Int) -> Bool {
         switch self {
-        case let .nfa(initial,_,_): return initial == state
-        case let .dfa(initial,_,_,_): return initial == state
+        case let .nfa(initial,_,_,_): return initial == state
+        case let .dfa(initial,_,_,_,_): return initial == state
             //        case .empty: return false
         }
+    }
+
+    // Helper: epsilon closure
+    func epsilonClosure(_ states: Set<Int>, over transitions: Set<Transition>) -> Set<Int> {
+        var closure = states
+        var workList = Array(states)
+        
+        while let state = workList.popLast() {
+            for transition in transitions where transition.source == state {
+                if case .epsilon = transition.alphabetRange {
+                    if !closure.contains(transition.target) {
+                        closure.insert(transition.target)
+                        workList.append(transition.target)
+                    }
+                }
+            }
+        }
+        
+        return closure
+    }
+    
+    /// Get token class for a final state
+    public func tokenClass(for finalState: Int) -> TokenClass? {
+        switch self {
+        case let .nfa(_,finals,_,tokenMap): return tokenMap[finalState]
+        case let .dfa(_,finals,_,_,tokenMap): return tokenMap[finalState]
+        }
+    }
+    
+    /// Run automaton and return matched token class
+    public func recognizeWithToken(string s: String) -> TokenClass? {
+        guard let finalState = runAndGetFinalState(string: s) else {
+            return nil
+        }
+        return tokenClass(for: finalState)
+    }
+    
+    /// Run automaton and return the final state reached (if accepting)
+    func runAndGetFinalState(string s: String) -> Int? {
+        switch self {
+        case .dfa(let initial, let finals, let transitions, _, _):
+            var current = initial
+            for char in s {
+                guard let next = step(current, char, over: transitions) else {
+                    return nil
+                }
+                current = next
+            }
+            return finals.contains(current) ? current : nil
+            
+        case .nfa(let initial, let finals, let transitions, _):
+            var currentStates = Set<Int>([initial])
+            
+            // Epsilon closure of initial state
+            currentStates = epsilonClosure(currentStates, over: transitions)
+            
+            for char in s {
+                var nextStates = Set<Int>()
+                for state in currentStates {
+                    let successors = move(state: state, symbol: char, over: transitions)
+                    nextStates.formUnion(successors)
+                }
+                currentStates = epsilonClosure(nextStates, over: transitions)
+                
+                if currentStates.isEmpty {
+                    return nil
+                }
+            }
+            
+            // Find highest priority accepting state
+            let acceptingStates = currentStates.intersection(finals)
+            return acceptingStates.min { state1, state2 in
+                let priority1 = tokenClass(for: state1)?.priority ?? Int.max
+                let priority2 = tokenClass(for: state2)?.priority ?? Int.max
+                return priority1 < priority2
+            }
+        }
+    }
+    
+    // Helper: move function
+    private func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
+        var result = Set<Int>()
+        for transition in transitions where transition.source == state {
+            if transition.alphabetRange.contains(character: symbol) {
+                result.insert(transition.target)
+            }
+        }
+        return result
+    }
+    
+    // Helper: step function for DFA
+    private func step(_ state: Int, _ symbol: Character, over transitions: Set<Transition>) -> Int? {
+        for transition in transitions where transition.source == state {
+            if transition.alphabetRange.contains(character: symbol) {
+                return transition.target
+            }
+        }
+        return nil
     }
 }
 
@@ -120,7 +291,7 @@ extension State: CustomStringConvertible {
     /// Print internal representation. States are not re-numbered.
     public var description: String {
         switch self {
-        case let .nfa(initial,finals,transitions):
+        case let .nfa(initial,finals,transitions,_):
             let states = transitions.states()
             
             var s: String = ""
@@ -133,7 +304,7 @@ extension State: CustomStringConvertible {
             }
             return s
 
-        case let .dfa(initial,finals,transitions,_):
+        case let .dfa(initial,finals,transitions,_,_):
             let states = transitions.states()
             
             var s: String = ""
@@ -148,7 +319,6 @@ extension State: CustomStringConvertible {
         }
     }
 }
-
 
 extension State where T == NondeterministicFiniteState {
     
@@ -161,7 +331,7 @@ extension State where T == NondeterministicFiniteState {
     /// - Returns: `true` if the automaton ends in an accepting state after consuming the string, `false` otherwise.
     /// - Complexity: Linear in the length of the string `O(|s|)` for a DFA.
     public func run(string s: String) -> Bool {
-        guard case let .nfa(start,finals,transitions) = self else { return false }
+        guard case let .nfa(start,finals,transitions,_) = self else { return false }
         var states = epsClosure(state: start, over: transitions)
         for ch in s {
             // move(A,ch)
@@ -239,7 +409,7 @@ extension State where T == NondeterministicFiniteState {
     ///   - symbol: The input character to consume.
     /// - Returns: A `Set` of valid destination states. Returns an empty set if no matching transition exists.
     public func step(state: Int, symbol: Character) -> Set<Int> {
-        guard case let .nfa(initial: _, finals: _, transitions: transitions) = self else { return Set<Int>() }
+        guard case let .nfa(initial: _, finals: _, transitions: transitions, _) = self else { return Set<Int>() }
         return step(state: state, symbol: symbol, over: transitions)
     }
     
@@ -253,7 +423,7 @@ extension State where T == NondeterministicFiniteState {
     ///   - symbol: The input character triggering the transition.
     /// - Returns: A `Set` of state identifiers that are successors of `source` on input `symbol`.
     public func successor(source: Int, symbol: Character) -> Set<Int> {
-        guard case let .nfa(initial: _, finals: _, transitions: trans) = self else { return Set<Int>() }
+        guard case let .nfa(initial: _, finals: _, transitions: trans, _) = self else { return Set<Int>() }
         let transitions = trans.filter { $0.source == source }
         var succStates = Set<Int>()
 
@@ -283,7 +453,7 @@ extension State where T == NondeterministicFiniteState {
     ///   - symbol: The input character on the transition.
     /// - Returns: A `Set` of state identifiers that are predecessors of `target` via `symbol`.
     public func predecessors(target: Int, symbol: Character) -> Set<Int> {
-        guard case let .nfa(initial: _, finals: _, transitions: nfaTransitions) = self else { return Set<Int>() }
+        guard case let .nfa(initial: _, finals: _, transitions: nfaTransitions, _) = self else { return Set<Int>() }
         let transitions = nfaTransitions.filter { $0.target == target }
         var predStates = Set<Int>()
 
@@ -314,7 +484,7 @@ extension State where T == NondeterministicFiniteState {
     ///   - target: The identifier of the destination state.
     /// - Returns: `true` if the transition exists, `false` otherwise.
     public func isSuccessor(source: Int, symbol: Character, target: Int) -> Bool {
-        guard case let .nfa(initial: _, finals: _, transitions: transitions) = self else { return false }
+        guard case let .nfa(initial: _, finals: _, transitions: transitions, _) = self else { return false }
         return transitions.contains(Transition(from: source, AlphabetRange.char(symbol), to: target))
     }
     
@@ -326,7 +496,7 @@ extension State where T == NondeterministicFiniteState {
     /// - Parameter source: The identifier of the starting state.
     /// - Returns: A `Set` of all reachable state identifiers, including `source` itself.
     public func reachableStates(from source: Int) -> Set<Int> {
-        guard case let .nfa(initial: _, finals: _, transitions: transitions) = self else { return Set<Int>() }
+        guard case let .nfa(initial: _, finals: _, transitions: transitions, _) = self else { return Set<Int>() }
         let targetStates = transitions.filter { $0.source == source }.map { $0.target }
         return Set<Int>(targetStates)
     }
@@ -348,9 +518,9 @@ extension State where T == NondeterministicFiniteState {
     ///
     /// - Parameter transition: The `Transition` structure containing the source, symbol, and target.
     public mutating func add(_ transition: Transition) {
-        guard case .nfa(let initial, let finals, var transitions) = self else { return }
+        guard case .nfa(let initial, let finals, var transitions, _) = self else { return }
         transitions.insert(transition)
-        self = .nfa(initial: initial, finals: finals, transitions: transitions)
+        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: [:])
     }
 }
 
@@ -365,7 +535,7 @@ extension State where T == DeterministicFiniteState {
     /// - Returns: `true` if the automaton ends in an accepting state after consuming the string, `false` otherwise.
     /// - Complexity: Linear in the length of the string `O(|s|)` for a DFA.
     public func run(string s: String) -> Bool {
-        guard case .dfa(initial: var state, finals: let finals, transitions: let transitions, _) = self else { return false }
+        guard case .dfa(initial: var state, finals: let finals, transitions: let transitions, _, _) = self else { return false }
         for ch in s {
             if let next: Int = step(state: state, symbol: ch, over: transitions) {
                 state = next
@@ -412,7 +582,7 @@ extension State where T == DeterministicFiniteState {
     ///   - symbol: The input character to consume.
     /// - Returns: A `Set` of valid destination states. Returns an empty set if no matching transition exists.
     public func step(state: Int, symbol: Character) -> Int? {
-        guard case let .dfa(_, _, transitions: transitions, _) = self else { return nil }
+        guard case let .dfa(_, _, transitions: transitions, _, _) = self else { return nil }
         return step(state: state, symbol: symbol, over: transitions)
     }
     
@@ -426,7 +596,7 @@ extension State where T == DeterministicFiniteState {
     ///   - symbol: The input character triggering the transition.
     /// - Returns: An optional state identifier that is successor of `source` on input `symbol`.
     public func successor(source: Int, symbol: Character) -> Int? {
-        guard case let .dfa(_, _, transitions: trans, _) = self else { return nil }
+        guard case let .dfa(_, _, transitions: trans, _, _) = self else { return nil }
         let transitions = trans.filter { $0.source == source }
         var succStates = Set<Int>()
         for edge in transitions {
@@ -455,7 +625,7 @@ extension State where T == DeterministicFiniteState {
     ///   - symbol: The input character on the transition.
     /// - Returns: A `Set` of state identifiers that are predecessors of `target` via `symbol`.
     public func predecessors(target: Int, symbol: Character) -> Set<Int> {
-        guard case let .dfa( _, _, transitions: trans, _) = self else { return Set<Int>() }
+        guard case let .dfa( _, _, transitions: trans, _, _) = self else { return Set<Int>() }
         let transitions = trans.filter { $0.target == target }
         var predStates = Set<Int>()
         for edge in transitions {
@@ -485,7 +655,7 @@ extension State where T == DeterministicFiniteState {
     ///   - target: The identifier of the destination state.
     /// - Returns: `true` if the transition exists, `false` otherwise.
     public func isSuccessor(source: Int, symbol: Character, target: Int) -> Bool {
-        guard case let .dfa(_, _, transitions: transitions, _) = self else { return false }
+        guard case let .dfa(_, _, transitions: transitions, _, _) = self else { return false }
         return transitions.contains(Transition(from: source, AlphabetRange.char(symbol), to: target))
     }
     
@@ -497,16 +667,16 @@ extension State where T == DeterministicFiniteState {
     /// - Parameter source: The identifier of the starting state.
     /// - Returns: A `Set` of all reachable state identifiers, including `source` itself.
     public func reachableStates(from source: Int) -> Set<Int> {
-        guard case let .dfa(_, _, transitions: transitions, _) = self else { return Set<Int>() }
+        guard case let .dfa(_, _, transitions: transitions, _, _) = self else { return Set<Int>() }
         let targetStates = transitions.filter { $0.source == source }.map { $0.target }
         return Set<Int>(targetStates)
     }
 
     /// Minimize finite state automaton.
     mutating func minimize() {
-        guard case let .dfa(initial: initial, finals: finals, transitions: transitions, _) = self else { return }
-        let (i,f,t,m) = self.minimizeMoore(dfa: (initial: initial, finals: finals, transitions: transitions))
-        self = State( initial: i,finals: f,transitions: t,minimal: m )
+//        guard case let .dfa(initial: initial, finals: finals, transitions: transitions, _, _) = self else { return }
+//        let (i,f,t,m) = self.minimizeMoore(dfa: (initial: initial, finals: finals, transitions: transitions))
+//        self = State( initial: i,finals: f,transitions: t,minimal: m )
     }
 }
 
@@ -558,7 +728,7 @@ extension State where T == Regex {
     /// This approach simulates the NFA directly building each DFA state on demand.
     public func recognize(string s: String) -> Bool {
         switch self {
-        case let .nfa(start,finals,transitions):
+        case let .nfa(start,finals,transitions,_):
             var states = epsClosure(state: start, over: transitions)
             for ch in s {
                 // move(A,ch)
@@ -569,7 +739,7 @@ extension State where T == Regex {
             }
             return !states.intersection(finals).isEmpty
 
-        case .dfa(var state,let finals,let transitions ,_):
+        case .dfa(var state,let finals,let transitions ,_, _):
             for ch in s {
                 if let next: Int = step(state, symbol: ch, over: transitions) {
                     state = next

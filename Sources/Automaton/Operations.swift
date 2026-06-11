@@ -8,7 +8,7 @@
 
 import Foundation
 
-extension Automaton where Type == DeterministicFiniteState.Subtype {
+extension Automaton: AutomataOperation where Type == DeterministicFiniteState.Subtype {
 
     /// Returns an automaton that accepts the union of the languages of the given automata.
     /// - Parameters:

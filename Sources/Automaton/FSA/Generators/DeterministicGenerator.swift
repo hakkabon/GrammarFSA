@@ -8,19 +8,6 @@
 
 import Foundation
 
-// References regarding how-to do this stuff:
-// https://cs.stackexchange.com/questions/12943/what-is-a-good-algorithm-for-generating-random-dfas
-// [1] Almeida, M., Moreira, N., & Reis, R. (2007). On the performance of automata minimization algorithms. Logic and Theory of Algorithms, 3.
-// [2] F. Bassino, J. David and C. Nicaud, Enumeration and random generation of possibly incomplete deterministic
-// Automata, Pure Mathematics and Applications 19 (2-3) (2009) 1-16.
-// [3] F. Bassino and C. Nicaud. Enumeration and Random Generation of Accessible Automata. Theor. Comp. Sc.. 381 (2007) 86-104.
-//
-// Another simple idea (DAWG-like): generate n random strings of random length.
-// build the automaton by unwinding random strings in reverse, ie. the last character is final node
-// constructs a path back to its start character.
-// Lastely, a inital node is created which connects to all start characters of the random strings.
-
-//struct DeterministicGenerator {
 extension State where T == DeterministicFiniteState {
 
     /// Generate a random DFA using the bridge-based strategy
