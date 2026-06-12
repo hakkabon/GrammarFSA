@@ -63,7 +63,7 @@ extension Regex {
         mutating func construct() throws -> State<Regex> {
             self.expression = try parser.parse()
             let enfa = try compile(self.expression)
-            return .nfa(initial: enfa.0, finals: Set<Int>([enfa.1]), transitions: enfa.2)
+            return .nfa(initial: enfa.0, finals: Set<Int>([enfa.1]), transitions: enfa.2, tokenMap: [:])
         }
         
         /// Concatenation of two ϵ-NFAs (e1 e2).

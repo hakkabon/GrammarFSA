@@ -15,19 +15,16 @@ public struct DeterministicFiniteState {
     public typealias Subtype = DeterministicFiniteState
 
     /// Internal value state of automaton.
-    public var state: State<Subtype> = .dfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>(), minimal: false)
-
-    /// Algorithm used for minimization of automaton.
-    public var algorithm: Algorithm = .moore
+    public var state: State<Subtype> = .dfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>(), minimal: false, tokenMap: [:])
 
     /// Creates a deterministic finite state automaton.
     public init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool = false) {
-        self.state = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
+        self.state = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: [:])
     }
 }
 
 extension DeterministicFiniteState: FSA {
-
+    
     /// Returns true if state of automaton is `empty`.
     public var isEmpty: Bool {
         self.state.isEmpty
@@ -76,6 +73,10 @@ extension DeterministicFiniteState: FSA {
     /// Returns true if given state is the `initial` state of autmaton.
     public func isInitial(state: Int) -> Bool {
         self.state.isInitial(state: state)
+    }
+    
+    public func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
+        return self.state.move(state: state, symbol: symbol, over: transitions)
     }
 }
 

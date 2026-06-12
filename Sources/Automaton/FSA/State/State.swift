@@ -6,27 +6,6 @@
 //  Copyright © 2019 hakkabon software. All rights reserved.
 //
 
-#if false
-/// The Internal values of Finite State Automaton can only be one of `Deterministic` or `Nondeterministic`.
-public enum State<T> {
-    case nfa(initial: Int, finals: Set<Int>, transitions: Set<Transition>)
-    case dfa(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool)
-    
-    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>) where T == NondeterministicFiniteState  {
-        self = .nfa(initial: initial, finals: finals, transitions: transitions)
-    }
-    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool) where T == DeterministicFiniteState {
-        self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
-    }
-    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>) where T == Regex {
-        self = .nfa(initial: initial, finals: finals, transitions: transitions)
-    }
-    init(initial: Int, finals: Set<Int>, transitions: Set<Transition>, minimal: Bool) where T == Regex {
-        self = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
-    }
-}
-#endif
-
 // MARK: - Extended State with Token Tracking
 
 /// Enhanced State enum with token class tracking
@@ -101,10 +80,14 @@ public enum State<T> {
 
 extension State {    
 
-    /// Returns true if state of automaton is `empty`.
+    /// Returns true if the automaton accepts no string (no final states and no transitions).
     public var isEmpty: Bool {
-//        guard case .empty = self.finiteState else { return false }
-        return false
+        switch self {
+        case let .nfa(_, finals, transitions, _):
+            return finals.isEmpty && transitions.isEmpty
+        case let .dfa(_, finals, transitions, _, _):
+            return finals.isEmpty && transitions.isEmpty
+        }
     }
     
     /// Returns true if state of automaton is `deterministic`.
@@ -208,8 +191,8 @@ extension State {
     /// Get token class for a final state
     public func tokenClass(for finalState: Int) -> TokenClass? {
         switch self {
-        case let .nfa(_,finals,_,tokenMap): return tokenMap[finalState]
-        case let .dfa(_,finals,_,_,tokenMap): return tokenMap[finalState]
+        case let .nfa(_,_,_,tokenMap): return tokenMap[finalState]
+        case let .dfa(_,_,_,_,tokenMap): return tokenMap[finalState]
         }
     }
     
@@ -264,7 +247,7 @@ extension State {
     }
     
     // Helper: move function
-    private func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
+    public func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
         var result = Set<Int>()
         for transition in transitions where transition.source == state {
             if transition.alphabetRange.contains(character: symbol) {
@@ -488,19 +471,27 @@ extension State where T == NondeterministicFiniteState {
         return transitions.contains(Transition(from: source, AlphabetRange.char(symbol), to: target))
     }
     
-    /// Computes the set of all states transitively reachable from the source state.
+    /// Computes the set of all states transitively reachable from `source` via
+    /// any sequence of labelled transitions (ε and non-ε alike).
     ///
-    /// This function performs a traversal (e.g., BFS or DFS) starting from `source`
-    /// to find all states `q` where a path exists from `source` to `q`.
+    /// Uses an iterative BFS so it correctly returns the full transitive closure,
+    /// not just the one-hop neighbours.
     ///
     /// - Parameter source: The identifier of the starting state.
-    /// - Returns: A `Set` of all reachable state identifiers, including `source` itself.
+    /// - Returns: A `Set` of reachable state identifiers, including `source` itself.
     public func reachableStates(from source: Int) -> Set<Int> {
-        guard case let .nfa(initial: _, finals: _, transitions: transitions, _) = self else { return Set<Int>() }
-        let targetStates = transitions.filter { $0.source == source }.map { $0.target }
-        return Set<Int>(targetStates)
+        guard case let .nfa(_, _, transitions, _) = self else { return Set<Int>() }
+        var visited = Set<Int>([source])
+        var queue   = [source]
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            for t in transitions where t.source == current {
+                if visited.insert(t.target).inserted { queue.append(t.target) }
+            }
+        }
+        return visited
     }
-    
+
     /// Adds a new transition to the automaton.
     ///
     /// Inserts a directed edge from `source` to `target` labeled with `symbol`.
@@ -518,9 +509,9 @@ extension State where T == NondeterministicFiniteState {
     ///
     /// - Parameter transition: The `Transition` structure containing the source, symbol, and target.
     public mutating func add(_ transition: Transition) {
-        guard case .nfa(let initial, let finals, var transitions, _) = self else { return }
+        guard case .nfa(let initial, let finals, var transitions, let tokenMap) = self else { return }
         transitions.insert(transition)
-        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: [:])
+        self = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: tokenMap)
     }
 }
 
@@ -659,50 +650,42 @@ extension State where T == DeterministicFiniteState {
         return transitions.contains(Transition(from: source, AlphabetRange.char(symbol), to: target))
     }
     
-    /// Computes the set of all states transitively reachable from the source state.
+    /// Computes the set of all states transitively reachable from `source` via
+    /// any sequence of labelled transitions.
     ///
-    /// This function performs a traversal (e.g., BFS or DFS) starting from `source`
-    /// to find all states `q` where a path exists from `source` to `q`.
+    /// Uses an iterative BFS, returning the full transitive closure.
     ///
     /// - Parameter source: The identifier of the starting state.
-    /// - Returns: A `Set` of all reachable state identifiers, including `source` itself.
+    /// - Returns: A `Set` of reachable state identifiers, including `source` itself.
     public func reachableStates(from source: Int) -> Set<Int> {
-        guard case let .dfa(_, _, transitions: transitions, _, _) = self else { return Set<Int>() }
-        let targetStates = transitions.filter { $0.source == source }.map { $0.target }
-        return Set<Int>(targetStates)
+        guard case let .dfa(_, _, transitions, _, _) = self else { return Set<Int>() }
+        var visited = Set<Int>([source])
+        var queue = [source]
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            for t in transitions where t.source == current {
+                if visited.insert(t.target).inserted { queue.append(t.target) }
+            }
+        }
+        return visited
     }
 
-    /// Minimize finite state automaton.
+    /// Minimizes this DFA.  Delegates to `DeterministicFiniteState.minimize()`.
     mutating func minimize() {
-//        guard case let .dfa(initial: initial, finals: finals, transitions: transitions, _, _) = self else { return }
-//        let (i,f,t,m) = self.minimizeMoore(dfa: (initial: initial, finals: finals, transitions: transitions))
-//        self = State( initial: i,finals: f,transitions: t,minimal: m )
+        var wrapper = DeterministicFiniteState(
+            initial: self.initial,
+            finals:  self.finals,
+            transitions: { guard case let .dfa(_,_,t,_,_) = self else { return [] }; return Array(t) }()
+                .reduce(into: Set<Transition>()) { $0.insert($1) }
+        )
+        wrapper.state = self
+        wrapper.minimize()
+        self = wrapper.state
     }
 }
 
 
 extension State where T == Regex {
-    
-    /// NFA move(A,ch).
-    public func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
-        var nextStates = Set<Int>()
-        let transitions = transitions.filter { $0.source == state }
-        
-        transitions.forEach({ edge in
-            switch edge.alphabetRange {
-            case .epsilon: break
-            case .char(_):
-                if edge.inAlphabet(char: symbol) {
-                    nextStates.insert(edge.target)
-                }
-            case .range(_,_):
-                if edge.inAlphabet(symbol, symbol) {
-                    nextStates.insert(edge.target)
-                }
-            }
-        })
-        return nextStates
-    }
 
     /// DFA step(A,ch).
     public func step(_ state: Int, symbol: Character, over transitions: Set<Transition>) -> Int? {

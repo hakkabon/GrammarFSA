@@ -40,39 +40,41 @@ protocol Graphvizable {
 public protocol FSA {
     /// Actual type value of the Finite State Automaton.
     associatedtype Subtype
-
+    
     /// Internal finite state of automaton.
     var state: State<Subtype> { get set }
-
+    
     /// Indicates if `Automaton` is empty or not.
     var isEmpty: Bool { get }
-
+    
     /// Indicates if `Automaton` is deterministic or not.
     var isDeterministic: Bool { get }
-
+    
     /// Indicates if `Automaton` is mininal or not.
     var isMinimal: Bool { get }
-
+    
     /// Initial `state` of automaton.
     var initial: Int { get }
-
+    
     /// Final `states` of automaton.
     var finals: Set<Int> { get }
-
+    
     /// Symbols on transitions used by the automaton.
     var alphabet: Alphabet { get }
-
+    
     /// Number of states.
     var stateCount: Int { get }
-
+    
     /// Number of final states.
     var finalCount: Int { get }
-
+    
     /// Indicates if `state` is a Final State
     func isFinal(state: Int) -> Bool
-
+    
     /// Indicates if `state` is an initial State.
     func isInitial(state: Int) -> Bool
+    
+    func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int>
 }
 
 

@@ -35,11 +35,15 @@ public struct Transition {
     }
 
     /// Returns true if given character is in alphabet, false otherwise.
+    ///
+    /// - Note: Returns `false` for `.epsilon` transitions; the ε-closure
+    ///   computation should pattern-match on `.epsilon` directly rather than
+    ///   calling this method.
     /// - Parameter char: Character to test for alphabet inclusion.
     /// - Returns: Returns `true` if given character is in alphabet, `false` otherwise.
     public func inAlphabet(char: Character) -> Bool {
         switch alphabetRange {
-        case .epsilon: return true
+        case .epsilon: return false
         case let .char(ch):
             return ch <= char && char <= ch
         case let .range(minChar, maxChar):
@@ -48,14 +52,16 @@ public struct Transition {
     }
     
     /// Returns true if given character range is in alphabet range, false otherwise.
+    ///
+    /// - Note: Returns `false` for `.epsilon` transitions.
     /// - Parameters:
     ///   - first: Lower bound of character range.
     ///   - last: Upper bound of character range.
-    /// - Returns: Returns `true` if given character range, `false` otherwise.
+    /// - Returns: Returns `true` if given character range is contained, `false` otherwise.
     public func inAlphabet(_ first: Character, _ last: Character) -> Bool {
         assert(first <= last)
         switch alphabetRange {
-        case .epsilon: return true
+        case .epsilon: return false
         case let .char(ch):
             return ch <= first && last <= ch
         case let .range(minChar,maxChar):

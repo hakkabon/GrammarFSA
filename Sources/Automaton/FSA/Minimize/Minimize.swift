@@ -1,5 +1,5 @@
 //
-//  Minimization.swift
+//  Minimize.swift
 //  Grammar-fsa
 //
 //  Created by Ulf Akerstedt-Inoue on 2026/02/16.
@@ -7,160 +7,153 @@
 
 import Foundation
 
-///```
-/// Finite Automata (DFAs), aim to reduce the number of states while preserving the language accepted by the automaton.
-/// These methods can be combined into a cohesive unit within a library or toolkit.
-///
-///```
+// MARK: - Token-Class-Aware DFA Minimization (Hopcroft's algorithm)
 
 extension DeterministicFiniteState {
-    
-    /// Minimize DFA while preserving token class distinctions
-    /// States with different token classes are never merged
+
+    /// Minimizes this DFA using Hopcroft's algorithm, extended to treat states
+    /// that carry *different* token classes as distinguishable even when their
+    /// transition behaviour is otherwise identical.
+    ///
+    /// After minimization `isMinimal` returns `true`.
+    ///
+    /// - Note: Only DFA states are handled; the method is a no-op if the
+    ///   internal state is `.nfa`.
     public mutating func minimize() {
         guard case .dfa(let initial, let finals, let transitions, _, let tokenMap) = state else {
-            return  // Only minimize DFAs
+            return  // Only minimize DFAs.
         }
-        
-        // Hopcroft's algorithm with token class awareness
+
         let allStates = Set(transitions.flatMap { [$0.source, $0.target] }).union([initial])
-        let alphabet = transitions.alphabet().characters
-        
-        // Initial partition: separate by (accepting/non-accepting) AND token class
+        let alphabet  = transitions.alphabet().characters
+
+        // ── Initial partition ────────────────────────────────────────────────
+        // Non-accepting states share one block; accepting states are grouped by
+        // token class so that states with different classes are never merged.
+
         var partitions: Set<Set<Int>> = []
-        
-        // Non-accepting states form one partition
+
         let nonAccepting = allStates.subtracting(finals)
-        if !nonAccepting.isEmpty {
-            partitions.insert(nonAccepting)
-        }
-        
-        // Group accepting states by token class
+        if !nonAccepting.isEmpty { partitions.insert(nonAccepting) }
+
         var tokenGroups: [TokenClass: Set<Int>] = [:]
-        for finalState in finals {
-            if let token = tokenMap[finalState] {
-                if tokenGroups[token] == nil {
-                    tokenGroups[token] = []
-                }
-                tokenGroups[token]!.insert(finalState)
+        for s in finals {
+            if let token = tokenMap[s] {
+                tokenGroups[token, default: []].insert(s)
             } else {
-                // Accepting state with no token class (shouldn't happen in tagged automaton)
-                // Put in separate partition
-                partitions.insert([finalState])
+                // Accepting state with no token class gets its own singleton block.
+                partitions.insert([s])
             }
         }
-        
-        // Add token-based partitions
-        for (_, states) in tokenGroups {
-            partitions.insert(states)
-        }
-        
-        // Refine partitions
+        for (_, group) in tokenGroups { partitions.insert(group) }
+
+        // ── Hopcroft refinement loop ─────────────────────────────────────────
         var workList = Array(partitions)
-        
+
         while let splitter = workList.popLast() {
             for symbol in alphabet {
-                // Find states that transition into splitter with this symbol
+
+                // Collect states that transition into `splitter` via `symbol`.
                 var predecessors = Set<Int>()
-                for state in splitter {
-                    let preds = getPredecessors(of: state, with: symbol, in: transitions)
-                    predecessors.formUnion(preds)
+                for s in splitter {
+                    predecessors.formUnion(
+                        getPredecessors(of: s, with: symbol, in: transitions))
                 }
-                
-                // Try to split each partition
+
                 var newPartitions: Set<Set<Int>> = []
                 for partition in partitions {
-                    let inPredecessors = partition.intersection(predecessors)
-                    let notInPredecessors = partition.subtracting(predecessors)
-                    
-                    if !inPredecessors.isEmpty && !notInPredecessors.isEmpty {
-                        // Partition splits
-                        newPartitions.insert(inPredecessors)
-                        newPartitions.insert(notInPredecessors)
-                        
-                        // Update work list
-                        if workList.contains(partition) {
-                            workList.removeAll { $0 == partition }
-                            workList.append(inPredecessors)
-                            workList.append(notInPredecessors)
-                        } else {
-                            // Add smaller set to work list
-                            if inPredecessors.count <= notInPredecessors.count {
-                                workList.append(inPredecessors)
-                            } else {
-                                workList.append(notInPredecessors)
-                            }
-                        }
+                    let inside  = partition.intersection(predecessors)
+                    let outside = partition.subtracting(predecessors)
+
+                    if inside.isEmpty || outside.isEmpty {
+                        newPartitions.insert(partition)     // no split
+                        continue
+                    }
+
+                    // Split: replace `partition` with the two halves.
+                    newPartitions.insert(inside)
+                    newPartitions.insert(outside)
+
+                    // Update the work list.
+                    if let idx = workList.firstIndex(of: partition) {
+                        workList.remove(at: idx)
+                        workList.append(inside)
+                        workList.append(outside)
                     } else {
-                        newPartitions.insert(partition)
+                        // Add the smaller half (standard Hopcroft optimisation).
+                        workList.append(inside.count <= outside.count ? inside : outside)
                     }
                 }
-                
                 partitions = newPartitions
             }
         }
-        
-        // Build minimized DFA
+
+        // ── Build the minimized DFA ──────────────────────────────────────────
+        // Assign a fresh sequential id to each equivalence class.
         var stateMap: [Int: Int] = [:]
-        var newStateId = 0
-        
+        var newId = 0
         for partition in partitions {
-            let representative = partition.first!
-            for state in partition {
-                stateMap[state] = newStateId
-            }
-            newStateId += 1
+            for s in partition { stateMap[s] = newId }
+            newId += 1
         }
-        
+
         let newInitial = stateMap[initial]!
-        var newFinals = Set<Int>()
+        var newFinals      = Set<Int>()
         var newTransitions = Set<Transition>()
         var newTokenMap: [Int: TokenClass] = [:]
-        
-        // Map finals and token classes
-        for finalState in finals {
-            let newState = stateMap[finalState]!
-            newFinals.insert(newState)
-            if let token = tokenMap[finalState] {
-                newTokenMap[newState] = token
-            }
+
+        // Map accepting states and their token classes.
+        for s in finals {
+            let mapped = stateMap[s]!
+            newFinals.insert(mapped)
+            if let token = tokenMap[s] { newTokenMap[mapped] = token }
         }
-        
-        // Map transitions (avoid duplicates)
-        var seenTransitions = Set<(Int, Character, Int)>()
-        for transition in transitions {
-            let newSource = stateMap[transition.source]!
-            let newTarget = stateMap[transition.target]!
-            
-            if case .char(let c) = transition.range {
-                let key = (newSource, c, newTarget)
-                if !seenTransitions.contains(key) {
-                    seenTransitions.insert(key)
-                    newTransitions.insert(Transition(
-                        from: newSource,
-                        AlphabetRange.char(c),
-                        to: newTarget
-                    ))
-                }
+
+        // Map transitions, deduplicated.
+        // Support both .char and .range labels so the minimizer works on the
+        // full AlphabetRange, not just single-character transitions.
+        var seen = Set<Transition>()
+        for t in transitions {
+            let src = stateMap[t.source]!
+            let tgt = stateMap[t.target]!
+            let mapped: Transition
+            switch t.alphabetRange {
+            case .epsilon:
+                mapped = Transition(from: src, AlphabetRange.epsilon, to: tgt)
+            case .char(let c):
+                mapped = Transition(from: src, AlphabetRange.char(c), to: tgt)
+            case .range(let lo, let hi):
+                mapped = Transition(from: src, AlphabetRange.range(lo, hi), to: tgt)
             }
+            if seen.insert(mapped).inserted { newTransitions.insert(mapped) }
         }
-        
-        // Update state
+
         state = State(
-            initial: newInitial,
-            finals: newFinals,
+            initial:     newInitial,
+            finals:      newFinals,
             transitions: newTransitions,
-            minimal: true,
-            tokenMap: newTokenMap
+            minimal:     true,
+            tokenMap:    newTokenMap
         )
     }
-    
-    // Helper: get predecessors
-    private func getPredecessors(of target: Int, with symbol: Character, in transitions: Set<Transition>) -> Set<Int> {
+
+    // MARK: - Private helper
+
+    /// Returns all states that reach `target` by consuming `symbol`.
+    private func getPredecessors(
+        of target: Int,
+        with symbol: Character,
+        in transitions: Set<Transition>
+    ) -> Set<Int> {
         var result = Set<Int>()
-        for transition in transitions where transition.target == target {
-            if case .char(let c) = transition.range, c == symbol {
-                result.insert(transition.source)
+        for t in transitions where t.target == target {
+            switch t.alphabetRange {
+            case .char(let c) where c == symbol:
+                result.insert(t.source)
+            case .range(let lo, let hi) where symbol >= lo && symbol <= hi:
+                result.insert(t.source)
+            default:
+                break
             }
         }
         return result

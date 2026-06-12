@@ -93,8 +93,8 @@ public struct Regex: RegularLanguage {
     public var alphabet: Alphabet {
         get {
             switch self.state {
-            case let .nfa(_,_,transitions): return transitions.alphabet()
-            case let .dfa(_,_,transitions,_): return transitions.alphabet()
+            case let .nfa(_,_,transitions,_): return transitions.alphabet()
+            case let .dfa(_,_,transitions,_,_): return transitions.alphabet()
             }
         }
     }
@@ -106,9 +106,9 @@ public struct Regex: RegularLanguage {
         }
         set(value) {
             if value, !internalState.isDeterministic {
-                guard case let .nfa(initial,finals,transitions) = self.state else { return }
+                guard case let .nfa(initial, finals, transitions, _) = self.state else { return }
                 let dfa = powerset(initial: initial, finals: finals, transitions: transitions)
-                self.state = .dfa(initial: dfa.initial, finals: dfa.finals, transitions: dfa.transitions, minimal: false)
+                self.state = .dfa(initial: dfa.initial, finals: dfa.finals, transitions: dfa.transitions, minimal: false, tokenMap: [:])
                 internalState.isDeterministic = true
             }
         }
@@ -118,15 +118,15 @@ public struct Regex: RegularLanguage {
     public var epsilonFree: Bool {
         get {
             switch self.state {
-            case .nfa(_,_,_): return internalState.isEpsilonFree
-            case .dfa(_,_,_,_): return true
+            case .nfa(_,_,_,_): return internalState.isEpsilonFree
+            case .dfa(_,_,_,_,_): return true
             }
         }
         set(value) {
             if value, !internalState.isEpsilonFree {
-                guard case let .nfa(initial,finals,transitions) = self.state else { return }
+                guard case let .nfa(initial, finals, transitions, _) = self.state else { return }
                 let nfa = removeEps(initial: initial, finals: finals, transitions: transitions)
-                self.state = .nfa(initial: nfa.initial, finals: nfa.finals, transitions: nfa.transitions)
+                self.state = .nfa(initial: nfa.initial, finals: nfa.finals, transitions: nfa.transitions, tokenMap: [:])
                 internalState.isEpsilonFree = true
             }
         }
@@ -211,14 +211,14 @@ extension Regex {
 extension Regex {
     
     /// Convert a Regular Expression to an Automaton of nondeterministic type.
-    public static func nondeterministicFiniteState(_ r: Regex) -> NondeterministicFiniteState  {
-        guard case let .nfa(initial, finals, transitions) = r.state else { fatalError() }
+    public static func nondeterministicFiniteState(_ r: Regex) -> NondeterministicFiniteState {
+        guard case let .nfa(initial, finals, transitions, _) = r.state else { fatalError() }
         return NondeterministicFiniteState(initial: initial, finals: finals, transitions: transitions)
     }
 
     /// Convert a Regular Expression to an Automaton of deterministic type.
     public static func deterministicFiniteState(_ r: Regex) -> DeterministicFiniteState {
-        guard case let .dfa(initial,finals,transitions,minimal) = r.state else { fatalError() }
+        guard case let .dfa(initial, finals, transitions, minimal, _) = r.state else { fatalError() }
         return DeterministicFiniteState(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
     }
     
@@ -226,24 +226,19 @@ extension Regex {
     /// Note also that there is no renumbering of states.
     /// Q, initial state (start state), final states (terminal state) and all transitions.
     public func printGraph() {
-        
         switch state {
-        case let .nfa(initial,finals,transitions):
-            let list = transitions.flatMap { [$0.source, $0.target]  }
-            let states = Set<Int>(list)
-            
+        case let .nfa(initial, finals, transitions, _):
+            let states = Set<Int>(transitions.flatMap { [$0.source, $0.target] })
             print("states \(states.count) initial state: \(initial)")
             print("final states: \(setNotation(finals))")
-            print("transitions: \(transitions.count)" )
+            print("transitions: \(transitions.count)")
             transitions.forEach { print("\($0)") }
 
-        case let .dfa(initial,finals,transitions,_):
-            let list = transitions.flatMap { [$0.source, $0.target]  }
-            let states = Set<Int>(list)
-
+        case let .dfa(initial, finals, transitions, _, _):
+            let states = Set<Int>(transitions.flatMap { [$0.source, $0.target] })
             print("states \(states.count) initial state: \(initial)")
             print("final states: \(setNotation(finals))")
-            print("transitions: \(transitions.count)" )
+            print("transitions: \(transitions.count)")
             transitions.forEach { print("\($0)") }
         }
     }

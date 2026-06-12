@@ -12,33 +12,35 @@ import GraphViz
 public struct Automaton<Type> {
 
     /// Automaton is either nfa | dfa.
-    public var state: State<Type> = .nfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>())
+    public var state: State<Type> = .nfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>(), tokenMap: [:])
 
     /// empty automaton is NOT defined.
     private init() {}
 
     public init<T: Deterministic>(_ fs: T) where T.Subtype == Type {
-        guard case let .dfa(initial,finals,transitions,minimal) = fs.state else { fatalError() }
-        self.state = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
+        guard case let .dfa(initial, finals, transitions, minimal, tokenMap) = fs.state else { fatalError() }
+        self.state = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: tokenMap)
     }
     
     public init<T: Nondeterministic>(_ fs: T) where T.Subtype == Type {
-        guard case let .nfa(initial,finals,transitions) = fs.state else { fatalError() }
-        self.state = .nfa(initial: initial, finals: finals, transitions: transitions)
+        guard case let .nfa(initial, finals, transitions, tokenMap) = fs.state else { fatalError() }
+        self.state = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: tokenMap)
     }
 
     public init<T: RegularLanguage>(_ fs: T) where T.Subtype == Type {
+        // RegularLanguage (Regex) still uses the token-map–free 4-tuple internally;
+        // pass an empty tokenMap so the arity matches State<T>'s 5-tuple cases.
         switch fs.state {
-        case .nfa(let initial, let finals, let transitions):
-            self.state = .nfa(initial: initial, finals: finals, transitions: transitions)
-        case .dfa(let initial, let finals, let transitions, let minimal):
-            self.state = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal)
+        case .nfa(let initial, let finals, let transitions, let tokenMap):
+            self.state = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: tokenMap)
+        case .dfa(let initial, let finals, let transitions, let minimal, let tokenMap):
+            self.state = .dfa(initial: initial, finals: finals, transitions: transitions, minimal: minimal, tokenMap: tokenMap)
         }
     }
 }
 
 extension Automaton : FSA {
-        
+
     /// Actual internal subtype.
     public typealias Subtype = Type
 
@@ -90,6 +92,10 @@ extension Automaton : FSA {
     /// Returns true if given state is the `initial` state of autmaton.
     public func isInitial(state: Int) -> Bool {
         self.state.isInitial(state: state)
+    }
+    
+    public func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
+        return self.state.move(state: state, symbol: symbol, over: transitions)
     }
 }
 
@@ -234,8 +240,8 @@ extension Automaton where Subtype == NondeterministicFiniteState {
     /// - Parameter nfa: The input `NfaTuple` representing the nondeterministic automaton.
     /// - Returns: A `DfaTuple` representing the equivalent deterministic automaton.
     /// - Complexity: Exponential in the worst case relative to the number of NFA states, though often much smaller in practice.
-    public mutating func determinize(nondeterministic nfa: NfaTuple) -> DfaTuple {
-        return self.state.determinize(nondeterministic: nfa)
+    public mutating func determinize(){
+        self.state.determinize()
     }
     
     /// Generates a new automaton instance based on the provided configuration options.

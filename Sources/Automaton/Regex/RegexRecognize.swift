@@ -79,26 +79,26 @@ extension Regex {
     /// - Returns: true if given string is accepted, otherwise false.
     public func recognize(string s: String) -> Bool {
         switch state {
-        case let .nfa(start,finals,transitions):
+        case let .nfa(start, finals, transitions, _):
             var states = epsClosure(state: start, over: transitions)
             for ch in s {
-                // move(A,ch)
-                states = states.reduce(Set<Int>(), { $0.union(move(state: $1, symbol: ch, over: transitions)) })
+                // move(A, ch)
+                states = states.reduce(Set<Int>()) { $0.union(move(state: $1, symbol: ch, over: transitions)) }
                 guard !states.isEmpty else { return false }
-                // 𝛆-closure( move(A,ch) )
-                states = states.reduce(Set<Int>(), { $0.union(epsClosure(state: $1, over: transitions)) })
+                // ε-closure( move(A, ch) )
+                states = states.reduce(Set<Int>()) { $0.union(epsClosure(state: $1, over: transitions)) }
             }
             return !states.intersection(finals).isEmpty
 
-        case .dfa(var state,let finals,let transitions ,_):
+        case .dfa(var current, let finals, let transitions, _, _):
             for ch in s {
-                if let next: Int = step(state, symbol: ch, over: transitions) {
-                    state = next
+                if let next: Int = step(current, symbol: ch, over: transitions) {
+                    current = next
                 } else {
                     return false
                 }
             }
-            return finals.contains(state)
+            return finals.contains(current)
         }
     }
     

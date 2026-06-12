@@ -11,108 +11,106 @@ import Foundation
 // MARK: - Determinization with Token Tracking
 
 extension State where T == NondeterministicFiniteState {
-    
-    /// Determinize NFA while preserving token class information
+
+    /// Converts this NFA into a DFA using the powerset (subset) construction,
+    /// preserving the token-class map so that each DFA accepting state is labelled
+    /// with the highest-priority token class from the corresponding NFA state set.
+    ///
+    /// Priority resolution: when several NFA accepting states collapse into one DFA
+    /// state the token class with the *lowest* `priority` integer wins, matching the
+    /// first-rule-wins convention used by scanner generators.
+    ///
+    /// - Complexity: O(2^|Q|) worst case, O(|Q|·|Σ|) typical.
     public mutating func determinize() {
         guard case .nfa(let initial, let finals, let transitions, let tokenMap) = self else {
-            return  // Already deterministic
+            return  // Already deterministic; nothing to do.
         }
-        
-        // Subset construction (powerset construction)
+
         typealias StateSet = Set<Int>
-        
-        var dfaStates: [StateSet: Int] = [:]
-        var dfaFinals = Set<Int>()
+
+        var dfaStates: [StateSet: Int] = [:]   // NFA state-set  →  DFA state id
+        var dfaFinals      = Set<Int>()
         var dfaTransitions = Set<Transition>()
         var dfaTokenMap: [Int: TokenClass] = [:]
-        var nextDfaState = 0
+        var nextId = 0                          // DFA state-id counter
         var workList: [StateSet] = []
-        
-        // Initial DFA state is epsilon closure of NFA initial state
+
+        // ── Initial DFA state ────────────────────────────────────────────────
         let initialClosure = epsilonClosure(Set([initial]), over: transitions)
-        dfaStates[initialClosure] = nextDfaState
-        let dfaInitial = nextDfaState
-        nextDfaState += 1
+        dfaStates[initialClosure] = nextId
+        let dfaInitial = nextId
+        nextId += 1
         workList.append(initialClosure)
-        
-        // Check if initial state is accepting and assign token
-        if let acceptingState = findHighestPriorityAcceptingState(in: initialClosure, finals: finals, tokenMap: tokenMap) {
+
+        // Tag the initial state if it is already accepting.
+        if let rep = findHighestPriorityAcceptingState(
+                in: initialClosure, finals: finals, tokenMap: tokenMap) {
             dfaFinals.insert(dfaInitial)
-            if let token = tokenMap[acceptingState] {
-                dfaTokenMap[dfaInitial] = token
-            }
+            if let token = tokenMap[rep] { dfaTokenMap[dfaInitial] = token }
         }
-        
-        // Build DFA states
+
+        // ── Main subset-construction loop ────────────────────────────────────
+        let alphabet = transitions.alphabet().characters
+
         while let nfaStateSet = workList.popLast() {
             let currentDfaState = dfaStates[nfaStateSet]!
-            
-            // For each symbol in alphabet
-            let alphabet = transitions.alphabet().characters
+
             for symbol in alphabet {
-                // Compute move and epsilon closure
+
+                // move(nfaStateSet, symbol)
                 var nextNfaStates = Set<Int>()
                 for nfaState in nfaStateSet {
-                    let moves = move(state: nfaState, symbol: symbol, over: transitions)
-                    nextNfaStates.formUnion(moves)
+                    nextNfaStates.formUnion(
+                        move(state: nfaState, symbol: symbol, over: transitions))
                 }
-                
-                if nextNfaStates.isEmpty {
-                    continue
-                }
-                
+                guard !nextNfaStates.isEmpty else { continue }
+
                 let nextClosure = epsilonClosure(nextNfaStates, over: transitions)
-                
-                // Get or create DFA state for this set
-                let nextDfaState: Int
+
+                // Get or create the DFA state for this NFA state set.
+                let targetDfaState: Int
                 if let existing = dfaStates[nextClosure] {
-                    nextDfaState = existing
+                    targetDfaState = existing
                 } else {
-                    nextDfaState = nextDfaState
-                    dfaStates[nextClosure] = nextDfaState
-                    nextDfaState += 1
+                    targetDfaState = nextId          // assign fresh id
+                    dfaStates[nextClosure] = targetDfaState
+                    nextId += 1
                     workList.append(nextClosure)
-                    
-                    // Check if this is an accepting state
-                    if let acceptingState = findHighestPriorityAcceptingState(in: nextClosure, finals: finals, tokenMap: tokenMap) {
-                        dfaFinals.insert(nextDfaState)
-                        if let token = tokenMap[acceptingState] {
-                            dfaTokenMap[nextDfaState] = token
-                        }
+
+                    // Tag if accepting.
+                    if let rep = findHighestPriorityAcceptingState(
+                            in: nextClosure, finals: finals, tokenMap: tokenMap) {
+                        dfaFinals.insert(targetDfaState)
+                        if let token = tokenMap[rep] { dfaTokenMap[targetDfaState] = token }
                     }
                 }
-                
-                // Add transition
-                dfaTransitions.insert(Transition(
-                    from: currentDfaState,
-                    AlphabetRange.char(symbol),
-                    to: nextDfaState
-                ))
+
+                dfaTransitions.insert(
+                    Transition(from: currentDfaState, AlphabetRange.char(symbol), to: targetDfaState))
             }
         }
-        
-        // Update state to DFA
+
+        // ── Replace this state with the resulting DFA ────────────────────────
         self = .dfa(
-            initial: dfaInitial,
-            finals: dfaFinals,
+            initial:    dfaInitial,
+            finals:     dfaFinals,
             transitions: dfaTransitions,
-            minimal: false,
-            tokenMap: dfaTokenMap
+            minimal:    false,
+            tokenMap:   dfaTokenMap
         )
     }
-    
-    /// Find the accepting state with highest priority (lowest priority number) in a set
+
+    // MARK: - Private helpers
+
+    /// Returns the NFA accepting state with the highest priority (lowest `priority`
+    /// integer) from `stateSet ∩ finals`, or `nil` if the intersection is empty.
     private func findHighestPriorityAcceptingState(
         in stateSet: Set<Int>,
         finals: Set<Int>,
         tokenMap: [Int: TokenClass]
     ) -> Int? {
-        let acceptingStates = stateSet.intersection(finals)
-        
-        return acceptingStates.min { state1, state2 in
-            let priority1 = tokenMap[state1]?.priority ?? Int.max
-            let priority2 = tokenMap[state2]?.priority ?? Int.max
-            return priority1 < priority2
+        stateSet.intersection(finals).min { a, b in
+            (tokenMap[a]?.priority ?? Int.max) < (tokenMap[b]?.priority ?? Int.max)
         }
     }
 }

@@ -230,7 +230,7 @@ extension Regex {
                     }
                 }
             }
-            return .dfa(initial: initial, finals: finals, transitions: transitions, minimal: false)
+            return .dfa(initial: initial, finals: finals, transitions: transitions, minimal: false, tokenMap: [:])
         }
 
         mutating func collectSets(nfaStates: Set<Int>) -> Int {

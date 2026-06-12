@@ -15,11 +15,11 @@ public struct NondeterministicFiniteState {
     public typealias Subtype = NondeterministicFiniteState
 
     /// Internal value state of automaton.
-    public var state: State<Subtype> = .nfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>())
+    public var state: State<Subtype> = .nfa(initial: 0, finals: Set<Int>(), transitions: Set<Transition>(), tokenMap: [:])
 
     /// Creates a nondeterministic finite state automaton.
     public init(initial: Int, finals: Set<Int>, transitions: Set<Transition>) {
-        self.state = .nfa(initial: initial, finals: finals, transitions: transitions)
+        self.state = .nfa(initial: initial, finals: finals, transitions: transitions, tokenMap: [:])
     }
 }
 
@@ -73,6 +73,10 @@ extension NondeterministicFiniteState: FSA {
     /// Returns true if given state is the `initial` state of autmaton.
     public func isInitial(state: Int) -> Bool {
         self.state.isInitial(state: state)
+    }
+    
+    public func move(state: Int, symbol: Character, over transitions: Set<Transition>) -> Set<Int> {
+        return self.state.move(state: state, symbol: symbol, over: transitions)
     }
 }
 
