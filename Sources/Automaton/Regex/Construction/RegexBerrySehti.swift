@@ -14,7 +14,7 @@ extension Regex {
 
     struct BerrySethi: RegularLanguageBuilder {
         
-        let debug = true
+        let debug = false
 
         // Regex string parser.
         var parser: RegexParser
@@ -149,7 +149,8 @@ extension Regex {
             // all transitions from the initial state
             var transitions = Set<Transition>()
             for state in parsetree.children[0].first {
-                let t = Transition(from: q0, AlphabetRange.char(lookup[state]!), to: state)
+                guard let symbol = lookup[state] else { continue }  // skip positions without a character (e.g. charRange)
+                let t = Transition(from: q0, AlphabetRange.char(symbol), to: state)
                 transitions.insert(t)
             }
 
@@ -157,7 +158,8 @@ extension Regex {
             for state in leaves {
                 for nextState in state.follow {
                     if nextState == positions.count { continue }
-                    let t = Transition(from: state.pos, AlphabetRange.char(lookup[nextState]!), to: nextState)
+                    guard let symbol = lookup[nextState] else { continue }  // skip positions without a character
+                    let t = Transition(from: state.pos, AlphabetRange.char(symbol), to: nextState)
                     transitions.insert(t)
                 }
             }
@@ -212,7 +214,7 @@ extension Regex {
                     if debug { print("alphabet states: \(s)") }
 
                     // let nextS be the union of followpos(p) such that symbol at position p is a.
-                    let nextS = s.reduce(Set<Int>(), { $0.union( followpos[$1]! ) })
+                    let nextS = s.reduce(Set<Int>(), { $0.union( followpos[$1, default: []] ) })
                     if debug { print("> next state: \(setNotation(nextS))") }
 
                     // Skip empty states.

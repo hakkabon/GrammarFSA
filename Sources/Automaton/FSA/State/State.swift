@@ -314,16 +314,25 @@ extension State where T == NondeterministicFiniteState {
     /// - Returns: `true` if the automaton ends in an accepting state after consuming the string, `false` otherwise.
     /// - Complexity: Linear in the length of the string `O(|s|)` for a DFA.
     public func run(string s: String) -> Bool {
-        guard case let .nfa(start,finals,transitions,_) = self else { return false }
-        var states = epsClosure(state: start, over: transitions)
-        for ch in s {
-            // move(A,ch)
-            states = states.reduce(Set<Int>(), { $0.union(step(state: $1, symbol: ch, over: transitions)) })
-            guard !states.isEmpty else { return false }
-            // 𝛆-closure( move(A,ch) )
-            states = states.reduce(Set<Int>(), { $0.union(epsClosure(state: $1, over: transitions)) })
+        switch self {
+        case let .nfa(start, finals, transitions, _):
+            var states = epsClosure(state: start, over: transitions)
+            for ch in s {
+                // move(A,ch)
+                states = states.reduce(Set<Int>(), { $0.union(step(state: $1, symbol: ch, over: transitions)) })
+                guard !states.isEmpty else { return false }
+                // 𝛆-closure( move(A,ch) )
+                states = states.reduce(Set<Int>(), { $0.union(epsClosure(state: $1, over: transitions)) })
+            }
+            return !states.intersection(finals).isEmpty
+        case .dfa(var current, let finals, let transitions, _, _):
+            // After determinize() the state becomes .dfa; use the DFA simulator.
+            for ch in s {
+                guard let next = step(current, ch, over: transitions) else { return false }
+                current = next
+            }
+            return finals.contains(current)
         }
-        return !states.intersection(finals).isEmpty
     }
     
     /// Computes the ε-closure (epsilon closure) of a given state.
@@ -672,11 +681,14 @@ extension State where T == DeterministicFiniteState {
 
     /// Minimizes this DFA.  Delegates to `DeterministicFiniteState.minimize()`.
     mutating func minimize() {
+        var transitions: Set<Transition> = []
+        if case let .dfa(_, _, t, _, _) = self {
+            transitions = t
+        }
         var wrapper = DeterministicFiniteState(
             initial: self.initial,
             finals:  self.finals,
-            transitions: { guard case let .dfa(_,_,t,_,_) = self else { return [] }; return Array(t) }()
-                .reduce(into: Set<Transition>()) { $0.insert($1) }
+            transitions: transitions
         )
         wrapper.state = self
         wrapper.minimize()

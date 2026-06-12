@@ -27,6 +27,7 @@
 //  22. isEmpty / isDeterministic / isMinimal flags
 
 import Testing
+import Foundation
 @testable import Automaton
 
 
@@ -369,9 +370,8 @@ struct NFASimulationTests {
                 Transition(from: 2, AlphabetRange.char("x"), to: 3),
             ]
         )
-        let closure = nfa.epsClosure(state: 0, over: nfa.state.alphabet == nfa.state.alphabet
-            ? { guard case .nfa(_,_,let t,_) = nfa.state else { return [] }; return t }()
-            : [])
+        let transitions: Set<Transition> = { guard case .nfa(_,_,let t,_) = nfa.state else { return [] }; return t }()
+        let closure = nfa.epsClosure(state: 0, over: transitions)
         // Should include 0, 1, and 2
         #expect(closure.contains(0))
         #expect(closure.contains(1))
@@ -1221,7 +1221,7 @@ struct GraphvizTests {
             transitions: [Transition(from: 0, AlphabetRange.char("a"), to: 1)]
         )
         let g = nfa.graphviz
-        #expect(g.isDirected == true)
+        #expect(g.directed == true)
     }
 
     @Test func dfaGraphvizProducesDirectedGraph() {
@@ -1231,13 +1231,13 @@ struct GraphvizTests {
             transitions: [Transition(from: 0, AlphabetRange.char("x"), to: 1)]
         )
         let g = dfa.graphviz
-        #expect(g.isDirected == true)
+        #expect(g.directed == true)
     }
 
     @Test func regexGraphvizProducesDirectedGraph() throws {
         let r = try Regex("ab")
         let g = r.graphviz
-        #expect(g.isDirected == true)
+        #expect(g.directed == true)
     }
 }
 

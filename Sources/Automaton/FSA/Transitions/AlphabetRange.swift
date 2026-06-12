@@ -289,3 +289,7 @@ extension AlphabetEpsRange: Comparable {
         }
     }
 }
+
+extension AlphabetRange: Decodable {}
+extension AlphabetEpsRange: Decodable {}
+
